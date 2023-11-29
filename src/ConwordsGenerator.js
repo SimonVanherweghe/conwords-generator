@@ -1,41 +1,46 @@
-const seed = require('math-random-seed');
-const clone = require('rfdc/default');
+const seed = require("math-random-seed");
+const clone = require("rfdc/default");
 
-/**Clase Generadora de crucigramas mediante algoritmos genéticos */
+/**
+ * Crossword Generator Class using Genetic Algorithms
+ */
 class ConwordsGenerator {
-  /**Opciones por defecto (modificables)<br>ej: ConwordsGenerator.options.ancho = 50;
+  /**
+   * Default options (modifiable) <br> Example: ConwordsGenerator.options.width = 50;
    * @type {Object}
    */
+
   static options = {
-    compilacion: null,
-    ancho: 24,
-    alto: 22,
-    espacioVacio: '·',
-    palabrasPorIteracion: 2,
-    solucionesPorIteracion: 33,
-    solucionesSeleccionadas: 22,
-    palabrasEnBorde: 0.9,
-    factorLargoMinimo: 1,
+    compilation: null,
+    width: 24,
+    height: 22,
+    emptySpace: "·",
+    wordsPerIteration: 2,
+    solutionsPerIteration: 33,
+    selectedSolutions: 22,
+    wordsOnBorder: 0.9,
+    minimumLengthFactor: 1,
     finishAt: 600,
-    fnPuntaje: (llenado, cruces, solas) => {
-      return (llenado * 4 + 2 * cruces) / (1 + solas * 4);
+    scoreFunction: (filled, crosses, singles) => {
+      return (filled * 4 + 2 * crosses) / (1 + singles * 4);
     },
   };
 
-  /**Este procedimiento agrupa las palabras por largo e indexa todas las palabras que tienen igual letra en cierta posicion, esto se hace para hacer mas rapido la generación de crucigramas.
-   * @param {Array} diccionarios - Array de diccionarios a compilar, donde cada diccionario es un array con la siguiente estructura:
+  /**
+   * This procedure groups words by length and indexes all words that have the same letter at a certain position. This is done to speed up crossword generation.
+   * @param {Array} dictionaries - Array of dictionaries to compile, where each dictionary is an array with the following structure:
    * [
-   *  [ 'palabra','descripcion','descripcion',... ]
-   *  [ 'palabra','descripcion','descripcion',... ]
-   * ...
+   *   ['word', 'description', 'description', ...],
+   *   ['word', 'description', 'description', ...],
+   *   ...
    * ]
-   * En la carpeta diccionarios se encuentran algunos ejemplos de diccionarios.
-   * @param {Function} fnProgress - Funcion que se llama cada vez que se termina de procesar un porcentaje de las palabras, recibe como parametro el porcentaje procesado (0-100)
-   * @returns {Promise} - retorna una promesa que resuelve con la compilación.
+   * Some examples of dictionaries can be found in the 'dictionaries' folder.
+   * @param {Function} fnProgress - Function called each time a percentage of words is processed, receiving the processed percentage as a parameter (0-100).
+   * @returns {Promise} - Returns a promise that resolves with the compilation.
    */
-  static async compilar(diccionarios, fnProgress) {
-    /**Funcion usada para esperar (Se usa en la web para no bloquear el hilo)
-     * @param {Number} delay - Tiempo en milisegundos a esperar
+  static async compile(dictionaries, fnProgress) {
+    /** Function used to wait (Used on the web to avoid blocking the thread)
+     * @param {Number} delay - Time in milliseconds to wait
      */
     const delay = async (delay) => {
       return new Promise((resolve) => {
@@ -43,16 +48,17 @@ class ConwordsGenerator {
       });
     };
 
-    //Agrupa todas las palabras y descripciones en un solo array
-    const data = diccionarios.flatMap((d) => d);
+    // Groups all words and descriptions into a single array
+    const data = dictionaries.flatMap((d) => d);
 
-    let palabras = [];
-    let frases = [];
-    let mapaGrupos = new Map();
+    let words = [];
+    let phrases = [];
+    let groupMap = new Map();
     let p0 = 0;
-    //Recorre todas las palabras y las agrupa por largo
-    for (let linea of data) {
-      let percent = Math.round((data.indexOf(linea) / data.length) * 100);
+
+    // Iterates through all words and groups them by length
+    for (let line of data) {
+      let percent = Math.round((data.indexOf(line) / data.length) * 100);
       if (p0 !== percent) {
         p0 = percent;
         if (fnProgress) {
@@ -66,25 +72,25 @@ class ConwordsGenerator {
 
       let idxMap = new Map();
 
-      linea.forEach((item) => {
-        //Descarta palabras de solo 1 letra
+      line.forEach((item) => {
+        // Discards words with only 1 letter
         if (item.length > 1) {
           if (item.match(/\s+/) === null) {
-            //Los textos sin espacios van a set1
+            // Texts without spaces go to set1
             set1.push(item);
-            let idx = palabras.indexOf(item);
+            let idx = words.indexOf(item);
             if (idx === -1) {
-              palabras.push(item);
-              idx = palabras.length - 1;
+              words.push(item);
+              idx = words.length - 1;
             }
             idxMap.set(item, idx);
           } else {
-            //Los textos con espacios van a set2
+            // Texts with spaces go to set2
             set2.push(item);
-            let idx = frases.indexOf(item);
+            let idx = phrases.indexOf(item);
             if (idx === -1) {
-              frases.push(item);
-              idx = frases.length - 1;
+              phrases.push(item);
+              idx = phrases.length - 1;
             }
             idxMap.set(item, idx);
           }
@@ -94,296 +100,373 @@ class ConwordsGenerator {
       if (set1.length > 0 && set1.length + set2.length > 1) {
         set1.forEach((item) => {
           let itemIdx = idxMap.get(item);
-          let grupoItem = mapaGrupos.get(itemIdx);
-          grupoItem = grupoItem ? grupoItem : [[], []];
+          let groupItem = groupMap.get(itemIdx);
+          groupItem = groupItem ? groupItem : [[], []];
           set1.forEach((item2) => {
             if (item !== item2) {
-              grupoItem[0].push(idxMap.get(item2));
+              groupItem[0].push(idxMap.get(item2));
             }
           });
           set2.forEach((item2) => {
-            grupoItem[1].push(idxMap.get(item2));
+            groupItem[1].push(idxMap.get(item2));
           });
-          mapaGrupos.set(itemIdx, grupoItem);
+          groupMap.set(itemIdx, groupItem);
         });
       }
     }
-    const letras = {};
-    const largos = [];
-    const preguntas = [];
-    preguntas.length = palabras.length;
-    for (let idx = 0; idx < preguntas.length; idx++) {
-      preguntas[idx] = mapaGrupos.get(idx);
+
+    const letters = {};
+    const lengths = [];
+    const questions = [];
+    questions.length = words.length;
+
+    for (let idx = 0; idx < questions.length; idx++) {
+      questions[idx] = groupMap.get(idx);
     }
 
-    let maxLargo = 0;
-    palabras.forEach((palabra, idx) => {
-      let match = palabra.match(/[A-Z0-9ÁÉÍÓÚÜÑ]+/);
-      if (match !== null && match[0] === palabra && palabra.length > 1) {
-        if (palabra.length > maxLargo) {
-          maxLargo = palabra.length;
+    let maxLenght = 0;
+
+    words.forEach((word, idx) => {
+      let match = word.match(/[A-Z0-9ÁÉÍÓÚÜÑ]+/);
+      if (match !== null && match[0] === word && word.length > 1) {
+        if (word.length > maxLenght) {
+          maxLenght = word.length;
         }
-        let largo = palabra.length;
-        if (largos[largo] === undefined) {
-          for (let i = 0; i <= largo; i++) {
-            if (largos[i] === undefined) {
-              largos[i] = [];
+        let length = word.length;
+        if (lengths[length] === undefined) {
+          for (let i = 0; i <= length; i++) {
+            if (lengths[i] === undefined) {
+              lengths[i] = [];
             }
           }
         }
-        largos[largo].push(idx);
-        for (let i = 0; i < palabra.length; i++) {
-          let letra = '' + i + palabra[i];
-          if (letras[letra] === undefined) {
-            letras[letra] = [];
+        lengths[length].push(idx);
+
+        for (let i = 0; i < word.length; i++) {
+          let letter = "" + i + word[i];
+          if (letters[letter] === undefined) {
+            letters[letter] = [];
           }
-          letras[letra].push(idx);
+          letters[letter].push(idx);
         }
-        6;
       }
     });
-    //largos.length = maxLargo + 1;
-    //largos.splice(0, 1);
-    return { palabras, letras, largos, frases, preguntas };
+
+    return { words, letters, lengths, phrases, questions };
   }
 
-  /**Instancia un nuevo generador de crucigramas indicando las opciones de configuración
-   * Ejemplo de opciones: {ancho: 50, alto: 50, compilacion: miCompilacion}
+  /**
+   * Instantiate a new crossword generator specifying the configuration options.
+   * Example options: { width: 50, height: 50, compilation: myCompilation }
    *
-   * @param {Object} options - Opciones de configuración
-   * @param {Object} options.compilacion - Compilación  de diccionarios (null por defecto, debe proveerse)
-   * @param {Number} options.ancho - Ancho del crucigrama (24 por defecto)
-   * @param {Number} options.alto - Alto del crucigrama (22 por defecto)
-   * @param {String} options.espacioVacio - Carácter del espacio no usado ('·' por defecto)
-   * @param {Number} options.palabrasPorIteracion - Cantidad de palabras agregadas en cada nueva iteración (2 por defecto)
-   * @param {Number} options.solucionesSeleccionadas - Cantidad de soluciones seleccionadas de la generación anterior para ser usadas en la siguiente iteración (22 por defecto)
-   * @param {Number} options.solucionesPorIteracion - Cantidad de soluciones generadas en iteración, a partir de las soluciones seleccionadas de la generación anterior (33 por defecto)
-   * @param {Number} options.palabrasEnBorde - Cantidad de palabras en los bordes [0, 1] (0.9 por defecto)
-   * @param {Number} options.factorLargoMinimo - Factor de disminución del largo minimo en las iteraciones: mientras sea mayor mas rapidamente el largo minimo de las palabras ira disminuyendo entre cada iteración (1 por defecto)
-   * @param {Number} options.finishAt - Cantidad maximo de intentos para encontrar una solucion, despues de alcanzado estos intentos esa solución se marca como finalizado y no se intentaran mas soluciones (600 por defecto)
-   * @param {Function} options.fnPuntaje - Es una función que asigna un puntaje al crucigrama y que depende del porcentaje de llenado, la cantidad de cruces de palabras y la cantidad de palabras solas (que no se cruzan con otras) ((llenado * 4 + 2 * cruces) / (1 + solas * 4) por defecto))
+   * @param {Object} options - Configuration options
+   * @param {Object} options.compilation - Compilation of dictionaries (null by default, must be provided)
+   * @param {Number} options.width - Width of the crossword (24 by default)
+   * @param {Number} options.height - Height of the crossword (22 by default)
+   * @param {String} options.emptySpace - Character for unused space ('·' by default)
+   * @param {Number} options.wordsPerIteration - Number of words added in each new iteration (2 by default)
+   * @param {Number} options.selectedSolutions - Number of solutions selected from the previous generation to be used in the next iteration (22 by default)
+   * @param {Number} options.solutionsPerIteration - Number of solutions generated in each iteration, based on the selected solutions from the previous generation (33 by default)
+   * @param {Number} options.wordsOnBorder - Number of words on the borders [0, 1] (0.9 by default)
+   * @param {Number} options.minimumLengthFactor - Factor for decreasing the minimum length in iterations: the higher it is, the more quickly the minimum length of words will decrease between each iteration (1 by default)
+   * @param {Number} options.finishAt - Maximum number of attempts to find a solution, after reaching these attempts, the solution is marked as finished and no more solutions will be attempted (600 by default)
+   * @param {Function} options.scoreFunction - A function that assigns a score to the crossword and depends on the percentage of filling, the number of word crosses, and the number of isolated words (not crossing with others) ((filled * 4 + 2 * crosses) / (1 + singles * 4) by default)
    */
   constructor(options) {
-    if (!options.compilacion) {
-      throw new Error('Debe pasar la compilacion de diccionarios como parametro');
+    if (!options.compilation) {
+      throw new Error(
+        "You must pass the compilation of dictionaries as a parameter"
+      );
     }
-    this.#configurar(ConwordsGenerator.options);
-    this.#configurar(options);
-  }
-
-  /**Genera la matriz inicial del crucigrama
-   * @param {Number} semilla - Semilla para generar la matriz del crucigrama (aleatorea por defecto)
-   * @returns {String} - Matriz del crucigrama (Si no se pasa semilla se genera una aleatorea)
-   */
-  generar(semilla = this.#generateSerial()) {
-    let matriz = Array.from({ length: this.options.alto }).map(() => new Array(this.options.ancho).fill([this.options.espacioVacio, false, false]));
-    matriz.preguntas = new Set();
-    matriz.preguntasData = [];
-    matriz.ancho = this.options.ancho;
-    matriz.alto = this.options.alto;
-    this.semilla = '' + semilla;
-    this.random = seed(semilla);
-    return matriz;
+    this.#configure(ConwordsGenerator.options);
+    this.#configure(options);
   }
 
   /**
-   * Realiza una iteración de generación de crucigrama
-   * @param {*} matrices
-   * @returns retorna la matriz resultante de la iteración
+   * Generates the initial crossword matrix.
+   * @param {Number} seed - Seed to generate the crossword matrix (random by default).
+   * @returns {Array} - Crossword matrix (If no seed is provided, a random one is generated).
    */
-  iterar(matrices) {
-    if (matrices.preguntas !== undefined) {
+  generate(seedData = this.#generateSerial()) {
+    let matrix = Array.from({ length: this.options.height }).map(() =>
+      new Array(this.options.width).fill([
+        this.options.emptySpace,
+        false,
+        false,
+      ])
+    );
+    matrix.questions = new Set();
+    matrix.questionsData = [];
+    matrix.width = this.options.width;
+    matrix.height = this.options.height;
+    this.seed = "" + seedData;
+    this.random = seed(seedData);
+    return matrix;
+  }
+
+  /**
+   * Performs an iteration of crossword generation.
+   * @param {*} matrices
+   * @returns The resulting matrix of the iteration.
+   */
+  iterate(matrices) {
+    if (matrices.questions !== undefined) {
       matrices = [matrices];
     }
-    let soluciones = [];
-    for (let i = 0; i < this.options.solucionesPorIteracion; i++) {
-      let idx = Math.floor((matrices.length * i) / this.options.solucionesPorIteracion);
-      let matriz = matrices[idx];
-      let matrizClon = clone(matriz);
+    let solutions = [];
+    for (let i = 0; i < this.options.solutionsPerIteration; i++) {
+      let idx = Math.floor(
+        (matrices.length * i) / this.options.solutionsPerIteration
+      );
+      let matrix = matrices[idx];
+      let clonedMatrix = clone(matrix);
 
-      for (let palabra = 0; palabra < this.options.palabrasPorIteracion; palabra++) {
-        matrizClon = this.#generarPregunta(matrizClon);
+      for (let word = 0; word < this.options.wordsPerIteration; word++) {
+        clonedMatrix = this.#generateQuestion(clonedMatrix);
       }
-      soluciones.push(matrizClon);
+      solutions.push(clonedMatrix);
     }
-    return this.#seleccionarSoluciones(soluciones);
+    return this.#selectSolutions(solutions);
   }
 
   /**
-   * Completa los espacios no usados con palabras cortas
+   * Fills unused spaces with short words.
    * @param {*} matrices
-   * @returns retorna la matriz completando los espacios vacios
-   *
-   * */
-  completar(matrices) {
-    //Vamos a comentar la mayor parte de este metodo
-    //Recorre las matrices
-    matrices.forEach((matriz) => {
-      let continua = true;
+   * @returns The matrix with filled empty spaces.
+   */
+  fillEmptySpaces(matrices) {
+    // Most of this method will be commented
+    // Iterate through matrices
+    matrices.forEach((matrix) => {
+      let continueIteration = true;
 
-      while (continua) {
+      while (continueIteration) {
         let points = [];
-        //Recorre las filas
-        for (let x = 0; x < this.options.ancho; x++) {
-          //Recorre las columnas
-          for (let y = 0; y < this.options.alto; y++) {
-            //Si en x,y hay un espacio vacio
-            if (matriz[y][x][0] === this.options.espacioVacio) {
-              //busca el espacio mas grande de una palabra horizontal que pase por x,y
-              //tambien debe chequear que no haya una palabra horizontal, sobre o bajo la palabra que estamos buscando
+
+        // Iterate through rows
+        for (let x = 0; x < this.options.width; x++) {
+          // Iterate through columns
+          for (let y = 0; y < this.options.height; y++) {
+            // If there is an empty space at x, y
+            if (matrix[y][x][0] === this.options.emptySpace) {
+              // Find the largest horizontal word space passing through x, y
+              // Also, check that there is no horizontal word above or below the word we are looking for
               let x1 = x,
                 x2 = x,
-                chocoX1 = false,
-                chocoX2 = false,
-                sigue = true;
+                x1Collision = false,
+                x2Collision = false,
+                continueX1 = true;
 
-              while (sigue) {
-                //lega al borde izquierdo
+              while (continueX1) {
+                // Reached the left edge
                 if (x1 < 0) {
                   x1 = 0;
-                  sigue = false;
-                  chocoX1 = false;
-                  //choca con una palabra horizontal
-                } else if (matriz[y][x1][2]) {
-                  sigue = false;
-                  x1++;
-                  x1++;
-                  chocoX1 = false;
-                  //choca con una palabra vertical
-                } else if (matriz[y][x1][1]) {
-                  sigue = false;
-                  chocoX1 = true;
-                  // esta bajo una palabra horizontal
-                } else if (y > 0 && matriz[y - 1][x1][0] !== this.options.espacioVacio) {
-                  sigue = false;
-                  x1++;
-                  chocoX1 = false;
-                  // esta sobre una palabra horizontal
-                } else if (y < this.options.alto - 1 && matriz[y + 1][x1][0] !== this.options.espacioVacio) {
-                  sigue = false;
-                  x1++;
-                  chocoX1 = false;
+                  continueX1 = false;
+                  x1Collision = false;
                 }
-                if (sigue) {
+                // Collides with a horizontal word
+                else if (matrix[y][x1][2]) {
+                  continueX1 = false;
+                  x1++;
+                  x1++;
+                  x1Collision = false;
+                }
+                // Collides with a vertical word
+                else if (matrix[y][x1][1]) {
+                  continueX1 = false;
+                  x1Collision = true;
+                }
+                // Is below a horizontal word
+                else if (
+                  y > 0 &&
+                  matrix[y - 1][x1][0] !== this.options.emptySpace
+                ) {
+                  continueX1 = false;
+                  x1++;
+                  x1Collision = false;
+                }
+                // Is above a horizontal word
+                else if (
+                  y < this.options.height - 1 &&
+                  matrix[y + 1][x1][0] !== this.options.emptySpace
+                ) {
+                  continueX1 = false;
+                  x1++;
+                  x1Collision = false;
+                }
+
+                if (continueX1) {
                   x1--;
                 }
               }
 
-              sigue = true;
-              while (sigue) {
-                //llega al borde derecho
-                if (x2 >= this.options.ancho) {
-                  x2 = this.options.ancho - 1;
-                  sigue = false;
-                  chocoX2 = false;
-                  //choca con una palabra horizontal
-                } else if (matriz[y][x2][2]) {
-                  sigue = false;
-                  x2--;
-                  x2--;
-                  chocoX2 = false;
-                  //choca con una palabra vertical
-                } else if (matriz[y][x2][1]) {
-                  sigue = false;
-                  chocoX2 = true;
-                  // esta bajo una palabra horizontal
-                } else if (y > 0 && matriz[y - 1][x2][0] !== this.options.espacioVacio) {
-                  sigue = false;
-                  x2--;
-                  chocoX2 = false;
-                  // esta sobre una palabra horizontal
-                } else if (y < this.options.alto - 1 && matriz[y + 1][x2][0] !== this.options.espacioVacio) {
-                  sigue = false;
-                  x2--;
-                  chocoX2 = false;
+              continueX1 = true;
+              while (continueX1) {
+                // Reached the right edge
+                if (x2 >= this.options.width) {
+                  x2 = this.options.width - 1;
+                  continueX1 = false;
+                  x2Collision = false;
                 }
-                if (sigue) {
+                // Collides with a horizontal word
+                else if (matrix[y][x2][2]) {
+                  continueX1 = false;
+                  x2--;
+                  x2--;
+                  x2Collision = false;
+                }
+                // Collides with a vertical word
+                else if (matrix[y][x2][1]) {
+                  continueX1 = false;
+                  x2Collision = true;
+                }
+                // Is below a horizontal word
+                else if (
+                  y > 0 &&
+                  matrix[y - 1][x2][0] !== this.options.emptySpace
+                ) {
+                  continueX1 = false;
+                  x2--;
+                  x2Collision = false;
+                }
+                // Is above a horizontal word
+                else if (
+                  y < this.options.height - 1 &&
+                  matrix[y + 1][x2][0] !== this.options.emptySpace
+                ) {
+                  continueX1 = false;
+                  x2--;
+                  x2Collision = false;
+                }
+
+                if (continueX1) {
                   x2++;
                 }
               }
-              if ((chocoX1 || chocoX2) && x1 < x2) {
-                points.push({ x: x1, y: y, size: x2 + 1 - x1, horizontal: true });
-                if (chocoX1) {
+
+              if ((x1Collision || x2Collision) && x1 < x2) {
+                points.push({
+                  x: x1,
+                  y: y,
+                  size: x2 + 1 - x1,
+                  horizontal: true,
+                });
+
+                if (x1Collision) {
                   for (let size = 2; size <= x2 + 1 - x1; size++) {
-                    points.push({ x: x1, y: y, size: x2 + 1 - x1, horizontal: true });
+                    points.push({
+                      x: x1,
+                      y: y,
+                      size: x2 + 1 - x1,
+                      horizontal: true,
+                    });
                   }
                 }
               }
-              //busca el espacio mas grande de una palabra vertical que pase por x,y
-              //tambien debe chequear que no haya una palabra vertical al lado la palabra que estamos buscando
+
+              // Find the largest vertical word space passing through x, y
+              // Also, check that there is no vertical word next to the word we are looking for
 
               let y1 = y,
                 y2 = y,
-                chocoY1 = false,
-                chocoY2 = false;
-              sigue = true;
-              while (sigue) {
-                //llega al borde superior
+                y1Collision = false,
+                y2Collision = false;
+              continueX1 = true;
+
+              while (continueX1) {
+                // Reached the top edge
                 if (y1 < 0) {
                   y1 = 0;
-                  sigue = false;
-                  chocoY1 = false;
-                  //choca con una palabra vertical
-                } else if (matriz[y1][x][1]) {
-                  sigue = false;
-                  y1++;
-                  y1++;
-                  chocoY1 = false;
-                  //choca con una palabra horizontal
-                } else if (matriz[y1][x][2]) {
-                  sigue = false;
-                  chocoY1 = true;
-                  // esta a la izquierda de una palabra vertical
-                } else if (x > 0 && matriz[y1][x - 1][0] !== this.options.espacioVacio) {
-                  sigue = false;
-                  y1++;
-                  chocoY1 = false;
-                  // esta a la derecha de una palabra vertical
-                } else if (x < this.options.ancho - 1 && matriz[y1][x + 1][0] !== this.options.espacioVacio) {
-                  sigue = false;
-                  y1++;
-                  chocoY1 = false;
+                  continueX1 = false;
+                  y1Collision = false;
                 }
-                if (sigue) {
+                // Collides with a vertical word
+                else if (matrix[y1][x][1]) {
+                  continueX1 = false;
+                  y1++;
+                  y1++;
+                  y1Collision = false;
+                }
+                // Collides with a horizontal word
+                else if (matrix[y1][x][2]) {
+                  continueX1 = false;
+                  y1Collision = true;
+                }
+                // Is to the left of a vertical word
+                else if (
+                  x > 0 &&
+                  matrix[y1][x - 1][0] !== this.options.emptySpace
+                ) {
+                  continueX1 = false;
+                  y1++;
+                  y1Collision = false;
+                }
+                // Is to the right of a vertical word
+                else if (
+                  x < this.options.width - 1 &&
+                  matrix[y1][x + 1][0] !== this.options.emptySpace
+                ) {
+                  continueX1 = false;
+                  y1++;
+                  y1Collision = false;
+                }
+
+                if (continueX1) {
                   y1--;
                 }
               }
 
-              sigue = true;
-              while (sigue) {
-                //llega al borde inferior
-                if (y2 >= this.options.alto) {
-                  y2 = this.options.alto - 1;
-                  sigue = false;
-                  chocoY2 = false;
-                  //choca con una palabra vertical
-                } else if (matriz[y2][x][1]) {
-                  sigue = false;
-                  y2--;
-                  y2--;
-                  chocoY2 = false;
-                  //choca con una palabra horizontal
-                } else if (matriz[y2][x][2]) {
-                  sigue = false;
-                  chocoY2 = true;
-                  // esta a la izquierda de una palabra vertical
-                } else if (x > 0 && matriz[y2][x - 1][0] !== this.options.espacioVacio) {
-                  sigue = false;
-                  y2--;
-                  chocoY2 = false;
-                  // esta a la derecha de una palabra vertical
-                } else if (x < this.options.ancho - 1 && matriz[y2][x + 1][0] !== this.options.espacioVacio) {
-                  sigue = false;
-                  y2--;
-                  chocoY2 = false;
+              continueX1 = true;
+              while (continueX1) {
+                // Reached the bottom edge
+                if (y2 >= this.options.height) {
+                  y2 = this.options.height - 1;
+                  continueX1 = false;
+                  y2Collision = false;
                 }
-                if (sigue) {
+                // Collides with a vertical word
+                else if (matrix[y2][x][1]) {
+                  continueX1 = false;
+                  y2--;
+                  y2--;
+                  y2Collision = false;
+                }
+                // Collides with a horizontal word
+                else if (matrix[y2][x][2]) {
+                  continueX1 = false;
+                  y2Collision = true;
+                }
+                // Is to the left of a vertical word
+                else if (
+                  x > 0 &&
+                  matrix[y2][x - 1][0] !== this.options.emptySpace
+                ) {
+                  continueX1 = false;
+                  y2--;
+                  y2Collision = false;
+                }
+                // Is to the right of a vertical word
+                else if (
+                  x < this.options.width - 1 &&
+                  matrix[y2][x + 1][0] !== this.options.emptySpace
+                ) {
+                  continueX1 = false;
+                  y2--;
+                  y2Collision = false;
+                }
+
+                if (continueX1) {
                   y2++;
                 }
               }
 
-              if ((chocoY1 || chocoY2) && y1 < y2) {
-                points.push({ x: x, y: y1, size: y2 + 1 - y1, horizontal: false });
+              if ((y1Collision || y2Collision) && y1 < y2) {
+                points.push({
+                  x: x,
+                  y: y1,
+                  size: y2 + 1 - y1,
+                  horizontal: false,
+                });
               }
             }
           }
@@ -392,146 +475,195 @@ class ConwordsGenerator {
         points.sort((a, b) => {
           return b.size - a.size;
         });
-        //console.log(points);
 
-        continua = false;
+        continueIteration = false;
 
         for (let point of points) {
           let matches = new Set();
 
           if (point.horizontal) {
-            if (matriz[point.y][point.x][0] !== this.options.espacioVacio) {
-              matches.add('' + 0 + matriz[point.y][point.x][0]);
+            if (matrix[point.y][point.x][0] !== this.options.emptySpace) {
+              matches.add("" + 0 + matrix[point.y][point.x][0]);
             }
-            if (matriz[point.y][point.x + point.size - 1][0] !== this.options.espacioVacio) {
-              matches.add('' + (point.size - 1) + matriz[point.y][point.x + point.size - 1][0]);
+            if (
+              matrix[point.y][point.x + point.size - 1][0] !==
+              this.options.emptySpace
+            ) {
+              matches.add(
+                "" +
+                  (point.size - 1) +
+                  matrix[point.y][point.x + point.size - 1][0]
+              );
             }
           } else {
-            if (matriz[point.y][point.x][0] !== this.options.espacioVacio) {
-              matches.add('' + 0 + matriz[point.y][point.x][0]);
+            if (matrix[point.y][point.x][0] !== this.options.emptySpace) {
+              matches.add("" + 0 + matrix[point.y][point.x][0]);
             }
-            if (matriz[point.y + point.size - 1][point.x][0] !== this.options.espacioVacio) {
-              matches.add('' + (point.size - 1) + matriz[point.y + point.size - 1][point.x][0]);
+            if (
+              matrix[point.y + point.size - 1][point.x][0] !==
+              this.options.emptySpace
+            ) {
+              matches.add(
+                "" +
+                  (point.size - 1) +
+                  matrix[point.y + point.size - 1][point.x][0]
+              );
             }
           }
-          let palabras = this.options.compilacion.largos[point.size];
-          if (palabras !== undefined) {
-            palabras = palabras.filter((palabra) => this.ignored.has(palabra) === false);
-            palabras = palabras ? palabras : [];
+
+          let words = this.options.compilation.lengths[point.size];
+
+          if (words !== undefined) {
+            words = words.filter((word) => this.ignored.has(word) === false);
+            words = words ? words : [];
+
             for (let match of matches) {
-              let palabrasMatch = this.options.compilacion.letras[match];
-              if (palabrasMatch !== undefined) {
-                palabras = palabras.filter((p) => palabrasMatch.includes(p));
+              let wordsMatch = this.options.compilation.letters[match];
+
+              if (wordsMatch !== undefined) {
+                words = words.filter((w) => wordsMatch.includes(w));
               } else {
-                palabras = [];
+                words = [];
               }
             }
-            palabras = palabras.filter((p) => !matriz.preguntas.has(p));
-            if (palabras.length > 0) {
-              let pos = Math.floor(Math.random() * palabras.length);
-              let idx = palabras[pos];
-              let palabra = this.options.compilacion.palabras[idx];
+
+            words = words.filter((w) => !matrix.questions.has(w));
+
+            if (words.length > 0) {
+              let pos = Math.floor(Math.random() * words.length);
+              let idx = words[pos];
+              let word = this.options.compilation.words[idx];
               let x = point.x,
                 y = point.y;
-              for (let i = 0; i < palabra.length; i++) {
-                matriz[y][x][0] = palabra[i];
+
+              for (let i = 0; i < word.length; i++) {
+                matrix[y][x][0] = word[i];
+
                 if (point.horizontal) {
-                  matriz[y][x][2] = true;
+                  matrix[y][x][2] = true;
                   x++;
                 } else {
-                  matriz[y][x][1] = true;
+                  matrix[y][x][1] = true;
                   y++;
                 }
               }
-              continua = true;
-              matriz.preguntas.add(idx);
-              matriz.preguntasData.push({ idx, palabra, horizontal: point.horizontal ? 1 : 0, x: point.x, y: point.y });
+
+              continueIteration = true;
+
+              matrix.questions.add(idx);
+
+              matrix.questionsData.push({
+                idx,
+                word,
+                horizontal: point.horizontal ? 1 : 0,
+                x: point.x,
+                y: point.y,
+              });
+
               break;
             }
           }
         }
       }
     });
-    return this.#seleccionarSoluciones(matrices);
+
+    return this.#selectSolutions(matrices);
   }
 
-  /** Formatea el crucigrama para ser mostrado por consola
-   * @param {Array} matriz - Matriz del crucigrama
-   * @param {Boolean} preguntas - Indica si se muestran las preguntas (false por defecto)
-   * @param {Number} layer - 0 por defecto
-   * @param {Number} solucionesVisibles - Indica la cantidad de soluciones visibles (1 por defecto)
-   * @returns {String} - Matriz del crucigrama formateada
+  /**
+   * Formats the crossword for console display.
+   * @param {Array} matrices - Crossword matrix
+   * @param {Boolean} questions - Indicates if questions are displayed (false by default)
+   * @param {Number} layer - 0 by default
+   * @param {Number} visibleSolutions - Indicates the number of visible solutions (1 by default)
+   * @returns {String} - Formatted crossword matrix
    */
-  toString(matrices, preguntas = false, layer = 0, solucionesVisibles = 1) {
-    if (matrices.preguntas !== undefined) {
+  toString(matrices, questions = false, layer = 0, visibleSolutions = 1) {
+    if (matrices.questions !== undefined) {
       matrices = [matrices];
     }
-    let textos = [];
-    let alto = 0;
+    let texts = [];
+    let height = 0;
     let mt = [...matrices];
-    mt.length = solucionesVisibles;
-    mt.forEach((matriz) => {
-      if (matriz) {
-        let s = '    ';
-        for (let x = 0; x < this.options.ancho; x++) {
-          s = s + Math.trunc(x / 10) + ' ';
+    mt.length = visibleSolutions;
+    mt.forEach((matrix) => {
+      if (matrix) {
+        let s = "    ";
+        for (let x = 0; x < this.options.width; x++) {
+          s = s + Math.trunc(x / 10) + " ";
         }
-        s = s + '\n    ';
-        for (let x = 0; x < this.options.ancho; x++) {
-          s = s + (x % 10) + ' ';
+        s = s + "\n    ";
+        for (let x = 0; x < this.options.width; x++) {
+          s = s + (x % 10) + " ";
         }
-        s = s + '\n\n';
-        for (let y = 0; y < this.options.alto; y++) {
-          s = s + (y < 10 ? '0' : '') + y + '  ';
-          for (let x = 0; x < this.options.ancho; x++) {
-            s = s + (layer > 0 ? (matriz[y][x][layer].toUpperCase() ? '#' : '·') : matriz[y][x][0].toUpperCase()) + ' ';
+        s = s + "\n\n";
+        for (let y = 0; y < this.options.height; y++) {
+          s = s + (y < 10 ? "0" : "") + y + "  ";
+          for (let x = 0; x < this.options.width; x++) {
+            s =
+              s +
+              (layer > 0
+                ? matrix[y][x][layer].toUpperCase()
+                  ? "#"
+                  : "·"
+                : matrix[y][x][0].toUpperCase()) +
+              " ";
           }
-          s = s + '\n';
+          s = s + "\n";
         }
 
-        let lineas = s.split('\n');
-        if (lineas.length > alto) {
-          alto = lineas.length;
+        let lines = s.split("\n");
+        if (lines.length > height) {
+          height = lines.length;
         }
 
-        textos.push(lineas);
+        texts.push(lines);
       }
     });
 
     function pad(s, n) {
       try {
-        let x = s.length < n ? pad(s + ' ', n) : s.substring(0, n);
+        let x = s.length < n ? pad(s + " ", n) : s.substring(0, n);
         return x;
       } catch (error) {
-        return '.';
+        return ".";
       }
     }
-    let ss = '';
-    for (let i = 0; i < alto; i++) {
-      for (let j = 0; j < textos.length; j++) {
-        ss += pad(textos[j][i] ? textos[j][i] : '', Math.max(26, this.options.ancho * 2 + 5));
+    let ss = "";
+    for (let i = 0; i < height; i++) {
+      for (let j = 0; j < texts.length; j++) {
+        ss += pad(
+          texts[j][i] ? texts[j][i] : "",
+          Math.max(26, this.options.width * 2 + 5)
+        );
       }
-      ss = ss + '\n';
+      ss = ss + "\n";
     }
 
-    if (preguntas) {
-      mt.forEach((matriz) => {
-        for (let orientacion of [1, 0]) {
-          let s = '\n' + (orientacion ? 'HORIZONTAL:' : 'VERTICAL:') + '\n';
-          for (let y = 0; y < this.options.alto; y++) {
-            for (let x = 0; x < this.options.ancho; x++) {
-              let pregunta = matriz.preguntasData.find((p) => p.x === x && p.y === y && p.horizontal === orientacion);
-              if (pregunta) {
-                let preg = clone(this.options.compilacion.preguntas[pregunta.idx]);
-                preg[0] = preg[0].filter((idx) => idx !== pregunta.idx);
-                preg[0] = preg[0].map((idx) => this.options.compilacion.palabras[idx]);
-                preg[1] = preg[1].map((idx) => this.options.compilacion.frases[idx]);
-                let options = [...preg[0], ...preg[1]];
-                preg = options[Math.floor(this.random() * options.length)];
-                pregunta.pregunta = preg;
-                pregunta.horizontal = pregunta.horizontal === 1;
-                delete pregunta.idx;
-                s = s + `${(x < 10 ? '0' : '') + x}${(y < 10 ? '0' : '') + y}:${pregunta.palabra}: ${preg}\n`;
+    if (questions) {
+      mt.forEach((matrix) => {
+        for (let orientation of [1, 0]) {
+          let s = "\n" + (orientation ? "HORIZONTAL:" : "VERTICAL:") + "\n";
+          for (let y = 0; y < this.options.height; y++) {
+            for (let x = 0; x < this.options.width; x++) {
+              let question = matrix.questionsData.find(
+                (q) => q.x === x && q.y === y && q.horizontal === orientation
+              );
+              if (question) {
+                let q = clone(this.options.compilation.questions[question.idx]);
+                q[0] = q[0].filter((idx) => idx !== question.idx);
+                q[0] = q[0].map((idx) => this.options.compilation.words[idx]);
+                q[1] = q[1].map((idx) => this.options.compilation.phrases[idx]);
+                let options = [...q[0], ...q[1]];
+                q = options[Math.floor(this.random() * options.length)];
+                question.question = q;
+                question.horizontal = question.horizontal === 1;
+                delete question.idx;
+                s =
+                  s +
+                  `${(x < 10 ? "0" : "") + x}${(y < 10 ? "0" : "") + y}:${
+                    question.word
+                  }: ${q}\n`;
               }
             }
           }
@@ -540,57 +672,68 @@ class ConwordsGenerator {
       });
     }
 
-    const matriz = matrices[0];
+    const matrix = matrices[0];
 
-    ss = `${ss}\nRESUMEN (${this.semilla})\n-------------------\nTAMAÑO: ${this.options.ancho}x${this.options.alto}\nHASH: ${matriz.hash}\nCRUCES: ${matriz.cruces}\nPALABRAS SOLAS: ${matriz.solas}\nLLENADO: ${matriz.llenado} ${matriz.llenado ? Math.round((100 * matriz.llenado) / this.options.ancho / this.options.alto) : ''}%\nSCORE: ${matriz.puntaje}`;
+    ss = `${ss}\nSUMMARY (${this.seed})\n-------------------\nSIZE: ${
+      this.options.width
+    }x${this.options.height}\nHASH: ${matrix.hash}\nCROSSES: ${
+      matrix.crosses
+    }\nISOLATED WORDS: ${matrix.isolated}\nFILL: ${matrix.fill} ${
+      matrix.fill
+        ? Math.round(
+            (100 * matrix.fill) / this.options.width / this.options.height
+          )
+        : ""
+    }%\nSCORE: ${matrix.score}`;
 
     return ss;
   }
 
   /**
-   * Retorna la matriz del crucigrama en formato JSON
-   * @param {*} matriz
-   * @returns matriz en formato JSON
+   * Returns the crossword matrix in JSON format.
+   * @param {*} matrix
+   * @returns Matrix in JSON format
    */
-  getJSON(matriz) {
-    if (matriz.preguntas === undefined) {
-      matriz = matriz[0];
+  getJSON(matrix) {
+    if (matrix.questions === undefined) {
+      matrix = matrix[0];
     }
-    const pregs = clone(matriz.preguntasData);
-    for (let orientacion of [1, 0]) {
-      for (let y = 0; y < this.options.alto; y++) {
-        for (let x = 0; x < this.options.ancho; x++) {
-          let pregunta = pregs.find((p) => p.x === x && p.y === y && p.horizontal === orientacion);
-          if (pregunta) {
-            let preg = clone(this.options.compilacion.preguntas[pregunta.idx]);
-            preg[0] = preg[0].filter((idx) => idx !== pregunta.idx);
-            preg[0] = preg[0].map((idx) => this.options.compilacion.palabras[idx]);
-            preg[1] = preg[1].map((idx) => this.options.compilacion.frases[idx]);
-            let options = [...preg[0], ...preg[1]];
-            preg = options[Math.floor(this.random() * options.length)];
-            pregunta.pregunta = preg;
-            pregunta.horizontal = pregunta.horizontal === 1;
-            delete pregunta.idx;
+    const questions = clone(matrix.questionsData);
+    for (let orientation of [1, 0]) {
+      for (let y = 0; y < this.options.height; y++) {
+        for (let x = 0; x < this.options.width; x++) {
+          let question = questions.find(
+            (q) => q.x === x && q.y === y && q.horizontal === orientation
+          );
+          if (question) {
+            let q = clone(this.options.compilation.questions[question.idx]);
+            q[0] = q[0].filter((idx) => idx !== question.idx);
+            q[0] = q[0].map((idx) => this.options.compilation.words[idx]);
+            q[1] = q[1].map((idx) => this.options.compilation.phrases[idx]);
+            let options = [...q[0], ...q[1]];
+            q = options[Math.floor(this.random() * options.length)];
+            question.question = q;
+            question.horizontal = question.horizontal === 1;
+            delete question.idx;
           }
         }
       }
     }
-    return pregs;
+    return questions;
   }
-
-  /** Indices de palabras ignoradas,que no se usaran en la proxima generación.<br>
-   * Para limpiar se debe ejecutar: generador.ignored.clear() */
+  /** Indices of ignored words that will not be used in the next generation. <br>
+   * To clean, execute: generator.ignored.clear() */
   ignored = new Set();
 
-  ////////////////////////////////////////////////////////////////////////////////
+  ///////////////////////////////////////////////////////////////////////////////
 
-  /** Ignora un set de palabras */
+  /** Ignores a set of words */
   #ignoreWords(words) {
     words.forEach((w) => this.ignored.add(w));
   }
 
-  /** Sobreescribe las opciones */
-  #configurar(options) {
+  /** Overrides the options */
+  #configure(options) {
     options = options || {};
     this.options = {
       ...this.options,
@@ -598,184 +741,266 @@ class ConwordsGenerator {
     };
   }
 
-  #ordenarPreguntas(matrices) {
-    const matricesClonadas = clone(matrices);
-    for (let matriz of matricesClonadas) {
-      for (let i = 1; i < matriz.preguntasData.length; i++) {
+  #sortQuestions(matrices) {
+    const clonedMatrices = clone(matrices);
+    for (let matrix of clonedMatrices) {
+      for (let i = 1; i < matrix.questionsData.length; i++) {
         for (let j = 0; j < i; j++) {
           if (
-            matriz.preguntasData[i].y * this.options.ancho + matriz.preguntasData[i].x - matriz.preguntasData[i].horizontal * 0.5 < //
-            matriz.preguntasData[j].y * this.options.ancho + matriz.preguntasData[j].x - matriz.preguntasData[j].horizontal * 0.5
+            matrix.questionsData[i].y * this.options.width +
+              matrix.questionsData[i].x -
+              matrix.questionsData[i].horizontal * 0.5 <
+            matrix.questionsData[j].y * this.options.width +
+              matrix.questionsData[j].x -
+              matrix.questionsData[j].horizontal * 0.5
           ) {
-            let aux = matriz.preguntasData[i];
-            matriz.preguntasData[i] = matriz.preguntasData[j];
-            matriz.preguntasData[j] = aux;
-            aux = matriz.preguntas[i];
-            matriz.preguntas[i] = matriz.preguntas[j];
-            matriz.preguntas[j] = aux;
+            let aux = matrix.questionsData[i];
+            matrix.questionsData[i] = matrix.questionsData[j];
+            matrix.questionsData[j] = aux;
+            aux = matrix.questions[i];
+            matrix.questions[i] = matrix.questions[j];
+            matrix.questions[j] = aux;
           }
         }
       }
     }
-    return matricesClonadas;
+    return clonedMatrices;
   }
 
   /**
-   * Elimina las palabras que no se cruzan con ninguna otra
+   * Removes words that do not intersect with any other word
    * @param {*} matrices
    * @returns {Array}
    */
-  #palabrasSolas(matrices) {
-    return matrices.map((matriz) => {
-      let solasIdx = new Set();
-      matriz.preguntasData.forEach((pregunta1) => {
-        let subCruces = 0;
-        matriz.preguntasData.forEach((pregunta2) => {
-          if (pregunta1.palabra !== pregunta2.palabra && pregunta1.horizontal !== pregunta2.horizontal) {
-            if (pregunta1.horizontal) {
-              if (pregunta1.x <= pregunta2.x && pregunta1.x + pregunta1.palabra.length > pregunta2.x) {
-                if (pregunta1.y >= pregunta2.y && pregunta1.y < pregunta2.y + pregunta2.palabra.length) {
-                  subCruces++;
+  #isolatedWords(matrices) {
+    return matrices.map((matrix) => {
+      let isolatedIndices = new Set();
+      matrix.questionsData.forEach((question1) => {
+        let subIntersections = 0;
+        matrix.questionsData.forEach((question2) => {
+          if (
+            question1.word !== question2.word &&
+            question1.horizontal !== question2.horizontal
+          ) {
+            if (question1.horizontal) {
+              if (
+                question1.x <= question2.x &&
+                question1.x + question1.word.length > question2.x
+              ) {
+                if (
+                  question1.y >= question2.y &&
+                  question1.y < question2.y + question2.word.length
+                ) {
+                  subIntersections++;
                 }
               }
             } else {
-              if (pregunta1.y <= pregunta2.y && pregunta1.y + pregunta1.palabra.length > pregunta2.y) {
-                if (pregunta1.x >= pregunta2.x && pregunta1.x < pregunta2.x + pregunta2.palabra.length) {
-                  subCruces++;
+              if (
+                question1.y <= question2.y &&
+                question1.y + question1.word.length > question2.y
+              ) {
+                if (
+                  question1.x >= question2.x &&
+                  question1.x < question2.x + question2.word.length
+                ) {
+                  subIntersections++;
                 }
               }
             }
           }
         });
-        if (subCruces === 0) {
-          solasIdx.add(pregunta1);
+        if (subIntersections === 0) {
+          isolatedIndices.add(question1);
         }
       });
-      return solasIdx;
+      return isolatedIndices;
     });
   }
+
   /**
-   *  A partir de un array de soluciones, las evalua y retorna las mejores soluciones (cantidadRetornada)
-   * */
-  #seleccionarSoluciones(soluciones, cantidadRetornada = this.options.solucionesSeleccionadas) {
-    soluciones.forEach((matriz) => {
-      matriz.hash = this.#hashCode(
-        matriz.preguntasData.reduce((p, c) => {
-          return p + c.palabra + '_' + c.horizontal + '_' + c.x + '_' + c.y;
-        }, '')
+   * Evaluates an array of solutions and returns the best solutions (specified by cantidadRetornada)
+   */
+  #selectSolutions(
+    solutions,
+    cantidadRetornada = this.options.selectedSolutions
+  ) {
+    solutions.forEach((matrix) => {
+      matrix.hash = this.#hashCode(
+        matrix.questionsData.reduce((prev, current) => {
+          return (
+            prev +
+            current.word +
+            "_" +
+            current.horizontal +
+            "_" +
+            current.x +
+            "_" +
+            current.y
+          );
+        }, "")
       );
-      let cruces = this.#getCruces(matriz);
-      matriz.cruces = cruces[0];
-      matriz.solas = cruces[1];
-      matriz.llenado = this.#getLlenado(matriz);
-      matriz.puntaje = this.options.fnPuntaje(matriz.llenado, matriz.cruces, matriz.solas);
+      let intersections = this.#getIntersections(matrix);
+      matrix.intersections = intersections[0];
+      matrix.isolatedWords = intersections[1];
+      matrix.fillingPercentage = this.#getFillingPercentage(matrix);
+      matrix.score = this.options.scoreFunction(
+        matrix.fillingPercentage,
+        matrix.intersections,
+        matrix.isolatedWords
+      );
     });
-    let solucionesNoRepetidasIdx = [];
-    let solucionesNoRepetidas = [];
-    soluciones.forEach((matriz) => {
-      if (!solucionesNoRepetidasIdx.includes(matriz.hash)) {
-        solucionesNoRepetidasIdx.push(matriz.hash);
-        solucionesNoRepetidas.push(matriz);
+
+    let uniqueSolutionsIndices = [];
+    let uniqueSolutions = [];
+    solutions.forEach((matrix) => {
+      if (!uniqueSolutionsIndices.includes(matrix.hash)) {
+        uniqueSolutionsIndices.push(matrix.hash);
+        uniqueSolutions.push(matrix);
       }
     });
 
-    solucionesNoRepetidas.sort((a, b) => b.puntaje - a.puntaje);
-    solucionesNoRepetidas.length = Math.min(solucionesNoRepetidas.length, cantidadRetornada);
+    uniqueSolutions.sort((a, b) => b.score - a.score);
+    uniqueSolutions.length = Math.min(
+      uniqueSolutions.length,
+      cantidadRetornada
+    );
 
-    return solucionesNoRepetidas;
+    return uniqueSolutions;
   }
 
-  /**Elimina los acentos */
-  #normalizarLetra(letra) {
-    return letra.replace('á', 'a').replace('é', 'e').replace('í', 'i').replace('ó', 'o').replace('ú', 'u').replace('ü', 'u');
+  /** Removes accents from a letter */
+  #normalizeLetter(letter) {
+    return letter
+      .replace("á", "a")
+      .replace("é", "e")
+      .replace("í", "i")
+      .replace("ó", "o")
+      .replace("ú", "u")
+      .replace("ü", "u");
   }
 
-  /**Metodo privado que genera una semilla aleatoria, indicando otra semilla y el largo de la semilla*/
+  /**
+   * Private method that generates a random seed, given another seed and the length of the seed
+   */
   #generateSerial(random = seed(), serialLength) {
-    const TAMAÑO_SEMILLA_X_DEFECTO = 8;
-    const CARACTERES_SEMILLA = '1234567890ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-    serialLength = serialLength || TAMAÑO_SEMILLA_X_DEFECTO;
-    let randomSerial = '';
+    const DEFAULT_SERIAL_SIZE = 8;
+    const SERIAL_CHARACTERS = "1234567890ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    serialLength = serialLength || DEFAULT_SERIAL_SIZE;
+    let randomSerial = "";
     for (let i = 0; i < serialLength; i = i + 1) {
-      let randomNumber = Math.floor(random() * CARACTERES_SEMILLA.length);
-      randomSerial += CARACTERES_SEMILLA.substring(randomNumber, randomNumber + 1);
+      let randomNumber = Math.floor(random() * SERIAL_CHARACTERS.length);
+      randomSerial += SERIAL_CHARACTERS.substring(
+        randomNumber,
+        randomNumber + 1
+      );
     }
     return randomSerial;
   }
 
-  #generarPregunta(matrizClon) {
+  /**
+   * Generates a question based on a cloned matrix
+   * @param {Array} matrixClone - Cloned matrix
+   * @returns {Array} - Matrix with generated question
+   */
+  #generateQuestion(matrixClone) {
     let intento = 0;
 
+    // eslint-disable-next-line no-constant-condition
     while (true) {
-      if (matrizClon.finish) {
-        return matrizClon;
+      if (matrixClone.finish) {
+        return matrixClone;
       } else {
         intento++;
         if (intento === this.options.finishAt) {
-          if (this.options.palabrasEnBorde && !matrizClon.borde) {
-            matrizClon.borde = true;
+          if (this.options.wordsOnBorder && !matrixClone.borde) {
+            matrixClone.borde = true;
             intento = 0;
           } else {
-            matrizClon.finish = true;
-            return matrizClon;
+            matrixClone.finish = true;
+            return matrixClone;
           }
         }
         // 0: vertical, 1: horizontal
         let horizontal = Math.floor(this.random() * 2);
-        let largo = Math.max(
+        let length = Math.max(
           Math.max(
             //
             2,
-            Math.min(this.options.ancho, this.options.alto, Math.trunc(this.options.compilacion.largos.length / 3) - 1) - Math.floor(matrizClon.preguntasData.length * this.options.factorLargoMinimo)
+            Math.min(
+              this.options.width,
+              this.options.height,
+              Math.trunc(this.options.compilation.lengths.length / 3) - 1
+            ) -
+              Math.floor(
+                matrixClone.questionsData.length *
+                  this.options.minimumLengthFactor
+              )
           ),
-          Math.floor(this.random() * Math.min(horizontal === 1 ? this.options.ancho : this.options.alto, this.options.compilacion.largos.length))
+          Math.floor(
+            this.random() *
+              Math.min(
+                horizontal === 1 ? this.options.width : this.options.height,
+                this.options.compilation.lengths.length
+              )
+          )
         );
 
-        let palabras = this.options.compilacion.largos[largo];
-        palabras = palabras.filter((palabra) => this.ignored.has(palabra) === false);
+        let palabras = this.options.compilation.lengths[length];
+
+        palabras = palabras.filter(
+          (palabra) => this.ignored.has(palabra) === false
+        );
 
         let x,
           y,
           matches = [];
-        if (this.options.palabrasEnBorde && !matrizClon.borde) {
+        if (this.options.wordsOnBorder && !matrixClone.borde) {
           x = horizontal //
-            ? Math.floor(this.random() * (this.options.ancho - largo)) //
-            : Math.floor(this.random() * 2) * (this.options.ancho - 1);
+            ? Math.floor(this.random() * (this.options.width - length)) //
+            : Math.floor(this.random() * 2) * (this.options.width - 1);
           y = horizontal //
-            ? Math.floor(this.random() * 2) * (this.options.alto - 1)
-            : Math.floor(this.random() * (this.options.alto - largo));
+            ? Math.floor(this.random() * 2) * (this.options.height - 1)
+            : Math.floor(this.random() * (this.options.height - length));
         } else {
           x = horizontal //
-            ? Math.floor(this.random() * (this.options.ancho - largo)) //
-            : Math.floor(this.random() * this.options.ancho);
+            ? Math.floor(this.random() * (this.options.width - length)) //
+            : Math.floor(this.random() * this.options.width);
           y = horizontal //
-            ? Math.floor(this.random() * this.options.alto)
-            : Math.floor(this.random() * (this.options.alto - largo));
+            ? Math.floor(this.random() * this.options.height)
+            : Math.floor(this.random() * (this.options.height - length));
         }
 
         let ok = true;
 
         if (
-          //falla si al inicio o al final de la palabra esta ocupado
-          (horizontal && x > 0 && matrizClon[y][x - 1][0] !== this.options.espacioVacio) ||
-          (horizontal && x < this.options.ancho - largo && matrizClon[y][x + largo][0] !== this.options.espacioVacio) ||
-          (!horizontal && y > 0 && matrizClon[y - 1][x][0] !== this.options.espacioVacio) ||
-          (!horizontal && y < this.options.alto - largo && matrizClon[y + largo][x][0] !== this.options.espacioVacio)
+          // Fails if at the beginning or end of the word it is occupied
+          (horizontal &&
+            x > 0 &&
+            matrixClone[y][x - 1][0] !== this.options.emptySpace) ||
+          (horizontal &&
+            x < this.options.width - length &&
+            matrixClone[y][x + length][0] !== this.options.emptySpace) ||
+          (!horizontal &&
+            y > 0 &&
+            matrixClone[y - 1][x][0] !== this.options.emptySpace) ||
+          (!horizontal &&
+            y < this.options.height - length &&
+            matrixClone[y + length][x][0] !== this.options.emptySpace)
         ) {
           ok = false;
         }
         let vecinoAdjacente = new Set();
         let vecinoCruce = new Set();
         if (ok) {
-          //recorre las filas
-          for (let i = 0; i < largo; i++) {
-            //falla: si la palabra es horizontal e intersecta con otra palabra horizontal
-            if (horizontal && matrizClon[y][x + i][1 + horizontal]) {
+          // Traverse the rows
+          for (let i = 0; i < length; i++) {
+            // Fails: if the word is horizontal and intersects with another horizontal word
+            if (horizontal && matrixClone[y][x + i][1 + horizontal]) {
               ok = false;
               break;
             }
-            //falla: si la palabra es vertical e intersecta con otra palabra vertical
-            if (!horizontal && matrizClon[y + i][x][1 + horizontal]) {
+            // Fails: if the word is vertical and intersects with another vertical word
+            if (!horizontal && matrixClone[y + i][x][1 + horizontal]) {
               ok = false;
               break;
             }
@@ -783,45 +1008,69 @@ class ConwordsGenerator {
               let match;
               if (horizontal) {
                 if (y > 0) {
-                  match = this.#getPreguntasPorPosicion(matrizClon, x + i, y - 1);
+                  match = this.#getPreguntasPorPosicion(
+                    matrixClone,
+                    x + i,
+                    y - 1
+                  );
                   match.forEach((p) => {
                     vecinoAdjacente.add(p.idx);
                   });
                 }
-                if (y < this.options.alto - 1) {
-                  match = this.#getPreguntasPorPosicion(matrizClon, x + i, y + 1);
+                if (y < this.options.height - 1) {
+                  match = this.#getPreguntasPorPosicion(
+                    matrixClone,
+                    x + i,
+                    y + 1
+                  );
                   match.forEach((p) => {
                     vecinoAdjacente.add(p.idx);
                   });
                 }
-                match = this.#getPreguntasPorPosicion(matrizClon, x + i, y);
+                match = this.#getPreguntasPorPosicion(matrixClone, x + i, y);
                 match.forEach((p) => vecinoCruce.add(p.idx));
               } else {
                 if (x > 0) {
-                  match = this.#getPreguntasPorPosicion(matrizClon, x - 1, y + i);
+                  match = this.#getPreguntasPorPosicion(
+                    matrixClone,
+                    x - 1,
+                    y + i
+                  );
                   match.forEach((p) => {
                     vecinoAdjacente.add(p.idx);
                   });
                 }
-                if (x < this.options.ancho - 1) {
-                  match = this.#getPreguntasPorPosicion(matrizClon, x + 1, y + i);
+                if (x < this.options.width - 1) {
+                  match = this.#getPreguntasPorPosicion(
+                    matrixClone,
+                    x + 1,
+                    y + i
+                  );
                   match.forEach((p) => {
                     vecinoAdjacente.add(p.idx);
                   });
                 }
-                match = this.#getPreguntasPorPosicion(matrizClon, x, y + i);
+                match = this.#getPreguntasPorPosicion(matrixClone, x, y + i);
                 match.forEach((p) => vecinoCruce.add(p.idx));
               }
-              if (horizontal && matrizClon[y][x + i][0] !== this.options.espacioVacio) {
-                matches.push('' + i + matrizClon[y][x + i][0]);
+              if (
+                horizontal &&
+                matrixClone[y][x + i][0] !== this.options.emptySpace
+              ) {
+                matches.push("" + i + matrixClone[y][x + i][0]);
               }
-              if (!horizontal && matrizClon[y + i][x][0] !== this.options.espacioVacio) {
-                matches.push('' + i + matrizClon[y + i][x][0]);
+              if (
+                !horizontal &&
+                matrixClone[y + i][x][0] !== this.options.emptySpace
+              ) {
+                matches.push("" + i + matrixClone[y + i][x][0]);
               }
             }
           }
         }
-        if ([...vecinoAdjacente].filter((m) => !vecinoCruce.has(m)).length > 0) {
+        if (
+          [...vecinoAdjacente].filter((m) => !vecinoCruce.has(m)).length > 0
+        ) {
           ok = false;
         }
 
@@ -831,8 +1080,12 @@ class ConwordsGenerator {
             palabras.forEach((palabra) => {
               let ok = true;
               for (let match of matches) {
-                let palabrasMatch = this.options.compilacion.letras[match];
-                if (palabrasMatch === undefined || (palabrasMatch !== undefined && !palabrasMatch.includes(palabra))) {
+                let palabrasMatch = this.options.compilation.letters[match];
+                if (
+                  palabrasMatch === undefined ||
+                  (palabrasMatch !== undefined &&
+                    !palabrasMatch.includes(palabra))
+                ) {
                   ok = false;
                   break;
                 }
@@ -842,13 +1095,13 @@ class ConwordsGenerator {
               }
             });
             palabras = _palabras;
-          } else if (this.options.palabrasEnBorde && matrizClon.borde) {
+          } else if (this.options.wordsOnBorder && matrixClone.borde) {
             ok = false;
           }
           if (ok && palabras.length > 0) {
             let idx = undefined;
             let count = 0;
-            while (idx === undefined || matrizClon.preguntas.has(idx)) {
+            while (idx === undefined || matrixClone.questions.has(idx)) {
               idx = palabras[Math.floor(this.random() * palabras.length)];
               count++;
               if (count === 100) {
@@ -857,29 +1110,37 @@ class ConwordsGenerator {
               }
             }
             if (ok) {
-              let palabra = this.options.compilacion.palabras[idx];
+              let word = this.options.compilation.words[idx];
 
-              for (let i = 0; i < largo; i++) {
-                let letra = this.#normalizarLetra(palabra.charAt(i));
+              for (let i = 0; i < length; i++) {
+                let letra = this.#normalizeLetter(word.charAt(i));
                 if (horizontal) {
-                  matrizClon[y][x + i][0] = letra;
-                  matrizClon[y][x + i][1 + horizontal] = true;
+                  matrixClone[y][x + i][0] = letra;
+                  matrixClone[y][x + i][1 + horizontal] = true;
                 }
                 if (!horizontal) {
-                  matrizClon[y + i][x][0] = letra;
-                  matrizClon[y + i][x][1 + horizontal] = true;
+                  matrixClone[y + i][x][0] = letra;
+                  matrixClone[y + i][x][1 + horizontal] = true;
                 }
               }
 
-              matrizClon.preguntas.add(idx);
-              matrizClon.preguntasData.push({ idx, palabra, horizontal, x, y });
-              if (this.options.palabrasEnBorde && !matrizClon.borde) {
-                let total = (this.options.ancho + this.options.alto) * 2;
-                let llevo = matrizClon.preguntasData.map((p) => p.palabra).join('').length;
+              matrixClone.questions.add(idx);
+              matrixClone.questionsData.push({
+                idx,
+                word,
+                horizontal,
+                x,
+                y,
+              });
+              if (this.options.wordsOnBorder && !matrixClone.borde) {
+                let total = (this.options.width + this.options.height) * 2;
+                let llevo = matrixClone.questionsData
+                  .map((p) => p.word)
+                  .join("").length;
                 //console.log(total, llevo, total - llevo);
-                matrizClon.borde = llevo / total > this.options.palabrasEnBorde;
+                matrixClone.borde = llevo / total > this.options.wordsOnBorder;
               }
-              return matrizClon;
+              return matrixClone;
             }
           }
         }
@@ -887,6 +1148,11 @@ class ConwordsGenerator {
     }
   }
 
+  /**
+   * Generates a hash code for a given string
+   * @param {string} str - The input string
+   * @returns {number} - The hash code
+   */
   #hashCode(str) {
     let hash = 0;
     for (let i = 0; i < str.length; i++) {
@@ -897,13 +1163,17 @@ class ConwordsGenerator {
     return hash;
   }
 
-  /**Retorna los espacios llenados del crucigrama */
-  #getLlenado(matriz) {
+  /**
+   * Returns the filled spaces of the crossword puzzle
+   * @param {Array} matrix - The crossword puzzle matrix
+   * @returns {number} - The number of filled spaces
+   */
+  #getFillingPercentage(matrix) {
     return Math.trunc(
       Math.trunc(
-        matriz.reduce((acc, fila) => {
+        matrix.reduce((acc, fila) => {
           let length = fila.filter((x) => {
-            return x[0] !== this.options.espacioVacio;
+            return x[0] !== this.options.emptySpace;
           }).length;
           return acc + length;
         }, 0)
@@ -911,24 +1181,45 @@ class ConwordsGenerator {
     );
   }
 
-  /**Retorna la cantidad de cruces del crucigrama y la contidad de preguntas solas */
-  #getCruces(matriz) {
+  /**
+   * Returns the number of intersections and the number of isolated questions in the crossword puzzle
+   * @param {Array} matrix - The crossword puzzle matrix
+   * @returns {Array} - An array containing the number of intersections and isolated questions
+   */
+  #getIntersections(matrix) {
     let cruces = 0;
     let solas = 0;
-    matriz.solasIdx = new Set();
-    matriz.preguntasData.forEach((pregunta1) => {
+    matrix.solasIdx = new Set();
+    matrix.questionsData.forEach((question1) => {
+      console.log("q1", question1);
       let subCruces = 0;
-      matriz.preguntasData.forEach((pregunta2) => {
-        if (pregunta1.palabra !== pregunta2.palabra && pregunta1.horizontal !== pregunta2.horizontal) {
-          if (pregunta1.horizontal) {
-            if (pregunta1.x <= pregunta2.x && pregunta1.x + pregunta1.palabra.length > pregunta2.x) {
-              if (pregunta1.y >= pregunta2.y && pregunta1.y < pregunta2.y + pregunta2.palabra.length) {
+      matrix.questionsData.forEach((question2) => {
+        console.log("q2", question2);
+        if (
+          question1.word !== question2.word &&
+          question1.horizontal !== question2.horizontal
+        ) {
+          if (question1.horizontal) {
+            if (
+              question1.x <= question2.x &&
+              question1.x + question1.word.length > question2.x
+            ) {
+              if (
+                question1.y >= question2.y &&
+                question1.y < question2.y + question2.word.length
+              ) {
                 subCruces++;
               }
             }
           } else {
-            if (pregunta1.y <= pregunta2.y && pregunta1.y + pregunta1.palabra.length > pregunta2.y) {
-              if (pregunta1.x >= pregunta2.x && pregunta1.x < pregunta2.x + pregunta2.palabra.length) {
+            if (
+              question1.y <= question2.y &&
+              question1.y + question1.word.length > question2.y
+            ) {
+              if (
+                question1.x >= question2.x &&
+                question1.x < question2.x + question2.word.length
+              ) {
                 subCruces++;
               }
             }
@@ -937,22 +1228,34 @@ class ConwordsGenerator {
       });
       if (subCruces === 0) {
         solas++;
-        matriz.solasIdx.add(pregunta1);
+        matrix.solasIdx.add(question1);
       }
       cruces += subCruces;
     });
     return [cruces, solas];
   }
 
-  /**Retorna las preguntas en una cordenada */
-  #getPreguntasPorPosicion(matriz, x, y) {
+  /**
+   * Returns the questions at a specific coordinate in the crossword puzzle
+   * @param {Array} matrix - The crossword puzzle matrix
+   * @param {number} x - The x-coordinate
+   * @param {number} y - The y-coordinate
+   * @returns {Array} - An array containing the questions at the specified coordinate
+   */
+  #getPreguntasPorPosicion(matrix, x, y) {
     let found = [];
-    matriz.preguntasData.forEach((pregunta, idx) => {
+    matrix.questionsData.forEach((question) => {
       if (
-        (pregunta.horizontal && pregunta.x <= x && pregunta.x + pregunta.palabra.length > x && pregunta.y === y) || //
-        (!pregunta.horizontal && pregunta.y <= y && pregunta.y + pregunta.palabra.length > y && pregunta.x === x)
+        (question.horizontal &&
+          question.x <= x &&
+          question.x + question.word.length > x &&
+          question.y === y) ||
+        (!question.horizontal &&
+          question.y <= y &&
+          question.y + question.word.length > y &&
+          question.x === x)
       ) {
-        found.push(pregunta);
+        found.push(question);
       }
     });
     return found;
