@@ -1,43 +1,54 @@
-const ConwordsGenerator = require('./ConwordsGenerator.js');
-// En tu codigo puedes usar:
+const ConwordsGenerator = require("./ConwordsGenerator.js");
+// In your code you can use:
 //const ConwordsGenerator = require('conwords-generator');
 
 /**
- * //descripción del ejemplo:
+ * //example description:
  *
- * 1) Compila diccionarios de informática
- * 2) Genera una matriz de 18x16 con los diccionarios compilados
- * 3) Itera 8 veces
- * 4) Aplica el metodo completar para tener un mejor resultado final
- * 5) Imprime el resultado final y las preguntas
- * 6) Imprime las preguntas en formato JSON
+ * 1) Compiles computer dictionaries
+ * 2) Generate an 18x16 matrix with the compiled dictionaries.
+ * 3) Iterate 8 times
+ * 4) Apply the complete method to get a better final result.
+ * 5) Print the final result and the questions
+ * 6) Print the questions in JSON format.
  */
 
 (async () => {
-  //1) Compila los diccionarios
-  const compilacion = await ConwordsGenerator.compilar([
-    //Terminos de informática generados con el Chat GPT
-    require('./diccionarios/gpt-informatica.json'),
-    //Terminos de informática de trivia irc
-    require('./diccionarios/trivia_informática.json'),
+  //1) Compiles dictionaries
+  const compilation = await ConwordsGenerator.compile([
+    //Computer terms generated with  Chat GPT
+    require("./diccionarios/gpt-informatica.json"),
+    //trivia computing terms
+    require("./diccionarios/trivia_informática.json"),
   ]);
 
-  //2) Inicializa el generador con la compilación ya generada y una matriz de 36x36
-  const generador = new ConwordsGenerator({ compilacion, ancho: 36, alto: 36 });
-  let matriz = generador.generar();
+  //2) Initializes the generator with the already generated compilation and a 36x36 matrix.
+  const generator = new ConwordsGenerator({
+    compilation,
+    width: 36,
+    height: 36,
+  });
+  let matrix = generator.generate();
 
-  //3)Itera 60 veces
+  //3)Iterate 60 times
   for (let i = 0; i < 60; i++) {
-    matriz = generador.iterar(matriz);
-    console.log(`Iteración:${i + 1} Cruces:${matriz[0].cruces} Solas:${matriz[0].solas} ${Math.round((100 * matriz[0].llenado) / matriz[0].ancho / matriz[0].alto)}%`);
+    matrix = generator.iterate(matrix);
+    console.log(
+      `Iteration:${i + 1} Crosses:${matrix[0].intersections} Singles:${
+        matrix[0].isolatedWords
+      } ${Math.round(
+        (100 * matrix[0].fillingPercentage) / matrix[0].width / matrix[0].height
+      )}%`
+    );
   }
-  //4) Se aplica el metodo completar para llenar espacios vacios
-  console.log('Completando...\n');
-  matriz = generador.completar(matriz);
 
-  //5) Imprime el resultado final, las preguntas y el json
-  console.log(generador.toString(matriz, true));
+  //4) The fill-in method is applied to fill empty spaces.
+  console.log("Completing...\n");
+  matrix = generator.fillEmptySpaces(matrix);
 
-  //6) Imprime las preguntas en formato JSON
-  //console.log(JSON.stringify(generador.getJSON(matriz), null, 2));
+  //5) Prints the final result, the questions and the json
+  console.log(generator.toString(matrix, true));
+
+  //6) Print the questions in JSON format.
+  //console.log(JSON.stringify(generator.getJSON(matrix), null, 2));
 })();

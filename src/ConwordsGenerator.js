@@ -677,11 +677,15 @@ class ConwordsGenerator {
     ss = `${ss}\nSUMMARY (${this.seed})\n-------------------\nSIZE: ${
       this.options.width
     }x${this.options.height}\nHASH: ${matrix.hash}\nCROSSES: ${
-      matrix.crosses
-    }\nISOLATED WORDS: ${matrix.isolated}\nFILL: ${matrix.fill} ${
-      matrix.fill
+      matrix.intersections
+    }\nISOLATED WORDS: ${matrix.isolatedWords}\nFILL: ${
+      matrix.fillingPercentage
+    } ${
+      matrix.fillingPercentage
         ? Math.round(
-            (100 * matrix.fill) / this.options.width / this.options.height
+            (100 * matrix.fillingPercentage) /
+              this.options.width /
+              this.options.height
           )
         : ""
     }%\nSCORE: ${matrix.score}`;
@@ -1187,14 +1191,12 @@ class ConwordsGenerator {
    * @returns {Array} - An array containing the number of intersections and isolated questions
    */
   #getIntersections(matrix) {
-    let cruces = 0;
-    let solas = 0;
-    matrix.solasIdx = new Set();
+    let crosses = 0;
+    let singles = 0;
+    matrix.singlesIdx = new Set();
     matrix.questionsData.forEach((question1) => {
-      console.log("q1", question1);
       let subCruces = 0;
       matrix.questionsData.forEach((question2) => {
-        console.log("q2", question2);
         if (
           question1.word !== question2.word &&
           question1.horizontal !== question2.horizontal
@@ -1227,12 +1229,12 @@ class ConwordsGenerator {
         }
       });
       if (subCruces === 0) {
-        solas++;
-        matrix.solasIdx.add(question1);
+        singles++;
+        matrix.singlesIdx.add(question1);
       }
-      cruces += subCruces;
+      crosses += subCruces;
     });
-    return [cruces, solas];
+    return [crosses, singles];
   }
 
   /**
